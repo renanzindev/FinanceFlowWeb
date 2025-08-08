@@ -1,12 +1,12 @@
 
 
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { 
   Home, PieChart, CreditCard, Calendar, Settings, 
   TrendingUp, Menu, X, Moon, Sun, DollarSign,
-  Users, FileSpreadsheet
+  Users, FileSpreadsheet, LogOut
 } from "lucide-react";
 import { 
   Sheet, 
@@ -15,12 +15,14 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { User } from "@/api/entities";
+import { setAuthToken } from "@/api/client";
 
 export default function Layout({ children, currentPageName }) {
   const [darkMode, setDarkMode] = useState(false);
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("user");
   const location = useLocation();
+  const navigate = useNavigate();
   
   useEffect(() => {
     const fetchUserData = async () => {
@@ -51,6 +53,12 @@ export default function Layout({ children, currentPageName }) {
       document.documentElement.classList.add("dark");
       localStorage.setItem("theme", "dark");
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setAuthToken(null);
+    navigate('/login');
   };
 
   const menuItems = [
@@ -212,14 +220,25 @@ export default function Layout({ children, currentPageName }) {
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="rounded-full"
-              >
-                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="rounded-full"
+                >
+                  {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                  title="Sair"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </aside>
@@ -284,16 +303,27 @@ export default function Layout({ children, currentPageName }) {
                   </nav>
                   
                   <div className="mt-auto p-4 border-t border-border/40">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
-                        {userName.charAt(0) || "U"}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{userName || "Usuário"}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {userRole === "admin" ? "Administrador" : "Usuário"}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
+                          {userName.charAt(0) || "U"}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{userName || "Usuário"}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {userRole === "admin" ? "Administrador" : "Usuário"}
+                          </div>
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleLogout}
+                        className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                        title="Sair"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </SheetContent>

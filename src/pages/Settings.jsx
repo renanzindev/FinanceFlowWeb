@@ -41,7 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import CategoryDialog from "../components/settings/CategoryDialog";
-import { Upload as CoreUpload } from "@/api/integrations";
+
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { CustomAlert } from "@/components/ui/alert-dialog";
 
@@ -56,19 +56,9 @@ const ProfileSection = ({ userData, setUserData, loading }) => {
     try {
       setUploading(true);
       
-      // Upload file
-      const { file_url } = await CoreUpload({
-        file: file
-      });
-
-      // Update user data
-      await User.updateMyUserData({
-        profile_picture: file_url
-      });
-
-      // Refresh user data
-      const newUser = await User.me();
-      setUserData(newUser);
+      // For now, just show a message that upload is not available
+      alert("Upload de imagem não disponível no momento");
+      
     } catch (error) {
       console.error("Error uploading profile picture:", error);
     } finally {
