@@ -30,10 +30,10 @@ export default function UserDialog({ open, onOpenChange, onSave, user = null }) 
   useEffect(() => {
     if (user) {
       setFormData({
-        full_name: user.full_name || "",
+        full_name: user.name || "",
         email: user.email || "",
-        role: user.role === "superadmin" ? "admin" : (user.role || "user"),
-        is_active: user.status === "active"
+        role: user.role || "user",
+        is_active: user.isactive !== false
       });
     } else {
       // Default for new user

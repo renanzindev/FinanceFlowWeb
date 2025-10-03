@@ -1,5 +1,6 @@
 import express from 'express';
-import User from '../models/User.js';
+import bcrypt from 'bcryptjs';
+import supabase from '../config/supabase.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -7,9 +8,14 @@ const router = express.Router();
 // Get all users (admin only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const users = await User.find()
-      .select('-password')
-      .sort({ createdAt: -1 });
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, isactive, created_at')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      throw error;
+    }
     
     res.json(users);
   } catch (error) {
@@ -18,12 +24,72 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Create new user (admin only)
+router.post('/', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { name, email, role = 'user', is_active = true, isActive = true, password } = req.body;
+    const userActive = is_active !== undefined ? is_active : isActive;
+
+    // Validate required fields
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+    
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this email already exists' });
+    }
+
+    // Generate default password if not provided
+    const defaultPassword = password || 'TempPass123!';
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // Create user
+    const userData = {
+      name,
+      email,
+      password: hashedPassword,
+      role: role === 'admin' ? 'admin' : 'user',
+      isactive: userActive
+    };
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert([userData])
+      .select('id, name, email, role, isactive, created_at')
+      .single();
+    
+    if (error) {
+      throw error;
+    }
+    
+    res.status(201).json({
+      message: 'User created successfully',
+      user,
+      temporaryPassword: !password ? defaultPassword : undefined
+    });
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
 // Get user by ID (admin only)
 router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, isactive, created_at')
+      .eq('id', req.params.id)
+      .single();
     
-    if (!user) {
+    if (error || !user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
@@ -37,23 +103,25 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
 // Update user (admin only)
 router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const allowedUpdates = ['name', 'email', 'role', 'isActive', 'currency', 'dateFormat'];
-    const updates = {};
-    
-    // Filter allowed updates
-    Object.keys(req.body).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        updates[key] = req.body[key];
-      }
-    });
+    const allowedUpdates = ['name', 'email', 'role', 'isactive', 'currency', 'dateFormat'];
+      const updates = {};
+      
+      Object.keys(req.body).forEach(key => {
+        if (allowedUpdates.includes(key)) {
+          updates[key] = req.body[key];
+        } else if (key === 'isActive' || key === 'is_active') {
+          updates['isactive'] = req.body[key];
+        }
+      });
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
-    ).select('-password');
+    const { data: user, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select('id, name, email, role, isactive, created_at')
+      .single();
 
-    if (!user) {
+    if (error || !user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -68,13 +136,18 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
 router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     // Prevent admin from deleting themselves
-    if (req.params.id === req.user._id.toString()) {
+    if (req.params.id === req.user.id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    const user = await User.findByIdAndDelete(req.params.id);
+    const { data: user, error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', req.params.id)
+      .select()
+      .single();
     
-    if (!user) {
+    if (error || !user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
@@ -88,22 +161,37 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
 // Get user statistics (admin only)
 router.get('/stats/overview', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: true });
-    const adminUsers = await User.countDocuments({ role: 'admin' });
+    // Get total users
+    const { count: totalUsers } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+    
+    // Get active users
+    const { count: activeUsers } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('isactive', true);
+    
+    // Get admin users
+    const { count: adminUsers } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'admin')
+      .eq('isactive', true);
     
     // Get recent registrations (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentRegistrations = await User.countDocuments({
-      createdAt: { $gte: thirtyDaysAgo }
-    });
+    const { count: recentRegistrations } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', thirtyDaysAgo.toISOString());
 
     res.json({
-      totalUsers,
-      activeUsers,
-      adminUsers,
-      recentRegistrations
+      totalUsers: totalUsers || 0,
+      activeUsers: activeUsers || 0,
+      adminUsers: adminUsers || 0,
+      recentRegistrations: recentRegistrations || 0
     });
   } catch (error) {
     console.error('Get user stats error:', error);

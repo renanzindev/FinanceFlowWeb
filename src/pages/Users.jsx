@@ -39,42 +39,6 @@ export default function UsersPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  
-  const sampleUsers = [
-    { 
-      id: "1", 
-      full_name: "Admin User", 
-      email: "admin@example.com", 
-      role: "admin",
-      created_date: "2023-01-15T10:30:00Z",
-      status: "active"
-    },
-    { 
-      id: "2", 
-      full_name: "John Doe", 
-      email: "john@example.com", 
-      role: "user",
-      created_date: "2023-02-20T14:15:00Z", 
-      status: "active"
-    },
-    { 
-      id: "3", 
-      full_name: "Jane Smith", 
-      email: "jane@example.com", 
-      role: "user",
-      created_date: "2023-03-05T09:45:00Z", 
-      status: "active"
-    },
-    // Super Admin removido dos dados de exemplo
-    { 
-      id: "5", 
-      full_name: "Inactive User", 
-      email: "inactive@example.com", 
-      role: "user",
-      created_date: "2023-04-10T11:20:00Z", 
-      status: "inactive"
-    },
-  ];
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -83,13 +47,10 @@ export default function UsersPage() {
         const userData = await User.me();
         setCurrentUser(userData);
         
-        // Simular busca de usuários (em um app real, seria uma API)
         // Se o usuário atual for admin, busca todos os usuários
-        // Caso contrário (se for user), idealmente não deveria ter acesso ou veria uma lista limitada
         if (userData.role === 'admin') {
-          // const fetchedUsers = await User.list(); // Em um cenário real
-          // setUsers(fetchedUsers);
-          setUsers(sampleUsers); // Usando dados de exemplo por enquanto
+          const fetchedUsers = await User.list();
+          setUsers(fetchedUsers);
         } else {
           setUsers([]); // Usuários normais não veem a lista de todos os usuários
         }
@@ -105,22 +66,35 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
-      user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeTab === "all") return matchesSearch;
-    if (activeTab === "admins") return matchesSearch && user.role === "admin"; // Apenas 'admin'
+    if (activeTab === "admins") return matchesSearch && user.role === "admin";
     if (activeTab === "users") return matchesSearch && user.role === "user";
-    if (activeTab === "inactive") return matchesSearch && user.status === "inactive";
+    if (activeTab === "inactive") return matchesSearch && !user.isactive;
     
     return matchesSearch;
   });
 
-  const handleCreateUser = (userData) => {
-    // In a real app, this would be an API call
-    console.log("Creating user:", userData);
-    setShowUserDialog(false);
-    // Then refresh the user list
+  const refreshUsers = async () => {
+    try {
+      const fetchedUsers = await User.list();
+      setUsers(fetchedUsers);
+    } catch (error) {
+      console.error("Erro ao buscar usuários:", error);
+    }
+  };
+
+  const handleCreateUser = async (userData) => {
+    try {
+      await User.create(userData);
+      setShowUserDialog(false);
+      await refreshUsers();
+    } catch (error) {
+      console.error("Erro ao criar usuário:", error);
+      alert("Erro ao criar usuário. Verifique os dados e tente novamente.");
+    }
   };
 
   const handleEditUser = (user) => {
@@ -128,19 +102,27 @@ export default function UsersPage() {
     setShowUserDialog(true);
   };
 
-  const handleUpdateUser = (userData) => {
-    // In a real app, this would be an API call
-    console.log("Updating user:", userData);
-    setShowUserDialog(false);
-    setSelectedUser(null);
-    // Then refresh the user list
+  const handleUpdateUser = async (userData) => {
+    try {
+      await User.update(selectedUser.id, userData);
+      setShowUserDialog(false);
+      setSelectedUser(null);
+      await refreshUsers();
+    } catch (error) {
+      console.error("Erro ao atualizar usuário:", error);
+      alert("Erro ao atualizar usuário. Tente novamente.");
+    }
   };
 
-  const handleDeleteUser = (userId) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
-      // In a real app, this would be an API call
-      console.log("Deleting user:", userId);
-      // Then refresh the user list
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm("Tem certeza que deseja deletar este usuário?")) {
+      try {
+        await User.delete(userId);
+        await refreshUsers();
+      } catch (error) {
+        console.error("Erro ao deletar usuário:", error);
+        alert("Erro ao deletar usuário. Tente novamente.");
+      }
     }
   };
 

@@ -134,6 +134,16 @@ class UserEntity {
     }
   }
 
+  async create(userData) {
+    try {
+      const response = await apiClient.post('/users', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
   async get(id) {
     try {
       const response = await apiClient.get(`/users/${id}`);
